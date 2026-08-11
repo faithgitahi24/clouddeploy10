@@ -1,11 +1,10 @@
-name: CI/CD Pipeline
+name: SendIt CI/CD Pipeline
 
 on:
   push:
     branches:
       - main
       - develop
-
   pull_request:
     branches:
       - main
@@ -20,17 +19,17 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: test_db
+          POSTGRES_DB: sendit_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d test_db"
+          --health-cmd "pg_isready -U postgres -d sendit_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -38,54 +37,25 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install UV
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
       - name: Install dependencies
         run: |
-          uv venv
-          source .venv/bin/activate
-          uv pip install -r requirements.txt
+          python -m pip install --upgrade pip
+          pip install -r send_it/requirements.txt
 
-      - name: Run tests and check coverage
+      - name: Run tests
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
-          SECRET_KEY: test_secret_key
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sendit_test
+          SECRET_KEY: test-secret-key
           ALGORITHM: HS256
-          ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+          ACCESS_TOKEN_EXPIRE_MINUTES: 30
+          WEATHER_API_URL: https://api.open-meteo.com/v1/forecast
+          MAX_UPLOAD_SIZE: 5242880
         run: |
-          source .venv/bin/activate
-          pytest tests/ -v --cov=. --cov-report=term
+          cd send_it
+          pytest tests/ -v --cov=. --cov-report=xml
 
-  deploy:
-    needs: test
-    runs-on: ubuntu-latest
-
-    if: github.ref == 'refs/heads/main'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
+      - name: Upload coverage
+        uses: codecov/codecov-action@v5
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:latest
-
-      - name: Deploy to Render
-        run: |
-          curl -X POST \
-            "https://api.render.com/deploy/${{ secrets.RENDER_SERVICE_ID }}"
+          files: ./send_it/coverage.xml
+          fail_ci_if_error: false
