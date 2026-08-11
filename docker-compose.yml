@@ -1,15 +1,18 @@
 services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - db
+
   db:
     image: postgres:16
-    container_name: clouddeploy_db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: clouddeploy_db
+      POSTGRES_DB: app_db
     ports:
       - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-volumes:
-  postgres_data:
