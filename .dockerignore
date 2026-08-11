@@ -1,0 +1,12 @@
+.venv
+__pycache__
+*.pyc
+.git
+.github
+.env
+test.db
+database.db
+.pytest_cache
+.coverage
+coverage.xml
+app.log
